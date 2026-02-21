@@ -28,7 +28,8 @@ export const STALE_TIMES = {
 
 // Canonical query keys
 export const QUERY_KEYS = {
-  clusters: () => ["clusters"] as const,
+  clusters: (filters?: object) =>
+    filters ? (["clusters", "list", filters] as const) : (["clusters", "list"] as const),
   cluster: (id: string) => ["clusters", id] as const,
   clusterNodes: (id: string) => ["clusters", id, "nodes"] as const,
   clusterGpus: (id: string) => ["clusters", id, "gpus"] as const,

@@ -6,7 +6,7 @@ from typing import Annotated, Awaitable, Callable
 
 from fastapi import APIRouter, Depends, HTTPException, Query, Request, status
 from fastapi.responses import JSONResponse
-from sqlalchemy import func, select
+from sqlalchemy import func, or_, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.database import get_db
@@ -78,8 +78,12 @@ async def _probe_cluster_connection(kubeapi_endpoint: str) -> ClusterTestRespons
     )
 
 
-def _can_access_cluster(current_user: CurrentUser, cluster_id: uuid.UUID) -> bool:
+def _can_access_cluster(
+    current_user: CurrentUser, cluster_id: uuid.UUID, added_by: uuid.UUID | None = None
+) -> bool:
     if current_user.connectk_group == "admin":
+        return True
+    if added_by and str(added_by) == current_user.id:
         return True
     return str(cluster_id) in (current_user.accessible_cluster_ids or [])
 
@@ -140,16 +144,11 @@ async def list_clusters(
     query = select(Cluster)
 
     if current_user.connectk_group != "admin":
+        access_conditions = [Cluster.added_by == uuid.UUID(current_user.id)]
         if current_user.accessible_cluster_ids:
             cluster_uuids = [uuid.UUID(cid) for cid in current_user.accessible_cluster_ids]
-            query = query.where(Cluster.id.in_(cluster_uuids))
-        else:
-            items, pagination = paginate([], page, page_size, 0)
-            kpis = ClusterListKPIs(
-                total_clusters=0, total_nodes=0, total_gpus=0,
-                avg_utilization_pct=0.0, active_deployments=0, est_monthly_cost_usd=0.0
-            )
-            return JSONResponse(content=success_response(items, pagination=pagination, kpis=kpis.model_dump()))
+            access_conditions.append(Cluster.id.in_(cluster_uuids))
+        query = query.where(or_(*access_conditions))
 
     if provider:
         query = query.where(Cluster.provider == provider)
@@ -201,13 +200,12 @@ async def get_cluster(
     db: Annotated[AsyncSession, Depends(get_db)],
 ):
     await check_rate_limit(request, current_user.id, GENERAL_RATE_LIMIT, RATE_WINDOW_SECONDS, "general")
-    if not _can_access_cluster(current_user, cluster_id):
-        raise HTTPException(status_code=403, detail=error_response("AUTH_INSUFFICIENT_PERMISSION", "Access denied"))
-
     result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
     cluster = result.scalar_one_or_none()
     if not cluster:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Cluster not found"))
+    if not _can_access_cluster(current_user, cluster_id, cluster.added_by):
+        raise HTTPException(status_code=403, detail=error_response("AUTH_INSUFFICIENT_PERMISSION", "Access denied"))
 
     async def produce() -> dict:
         return {"cluster": _cluster_to_response(cluster)}
@@ -334,13 +332,12 @@ async def list_cluster_nodes(
 ):
     """List all nodes in a cluster (returns cached/mock data)."""
     await check_rate_limit(request, current_user.id, GENERAL_RATE_LIMIT, RATE_WINDOW_SECONDS, "general")
-    if not _can_access_cluster(current_user, cluster_id):
-        raise HTTPException(status_code=403, detail=error_response("AUTH_INSUFFICIENT_PERMISSION", "Access denied"))
-
     result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
     cluster = result.scalar_one_or_none()
     if not cluster:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Cluster not found"))
+    if not _can_access_cluster(current_user, cluster_id, cluster.added_by):
+        raise HTTPException(status_code=403, detail=error_response("AUTH_INSUFFICIENT_PERMISSION", "Access denied"))
 
     async def produce() -> dict:
         mock_nodes = [
@@ -379,13 +376,12 @@ async def list_cluster_gpus(
 ):
     """List GPU resources in a cluster."""
     await check_rate_limit(request, current_user.id, GENERAL_RATE_LIMIT, RATE_WINDOW_SECONDS, "general")
-    if not _can_access_cluster(current_user, cluster_id):
-        raise HTTPException(status_code=403, detail=error_response("AUTH_INSUFFICIENT_PERMISSION", "Access denied"))
-
     result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
     cluster = result.scalar_one_or_none()
     if not cluster:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Cluster not found"))
+    if not _can_access_cluster(current_user, cluster_id, cluster.added_by):
+        raise HTTPException(status_code=403, detail=error_response("AUTH_INSUFFICIENT_PERMISSION", "Access denied"))
 
     async def produce() -> dict:
         mock_gpus = [
@@ -422,13 +418,12 @@ async def list_cluster_deployments(
 ):
     """List AI deployments in a specific cluster."""
     await check_rate_limit(request, current_user.id, GENERAL_RATE_LIMIT, RATE_WINDOW_SECONDS, "general")
-    if not _can_access_cluster(current_user, cluster_id):
-        raise HTTPException(status_code=403, detail=error_response("AUTH_INSUFFICIENT_PERMISSION", "Access denied"))
-
     cluster_result = await db.execute(select(Cluster).where(Cluster.id == cluster_id))
     cluster = cluster_result.scalar_one_or_none()
     if not cluster:
         raise HTTPException(status_code=404, detail=error_response("NOT_FOUND", "Cluster not found"))
+    if not _can_access_cluster(current_user, cluster_id, cluster.added_by):
+        raise HTTPException(status_code=403, detail=error_response("AUTH_INSUFFICIENT_PERMISSION", "Access denied"))
 
     async def produce() -> dict:
         result = await db.execute(

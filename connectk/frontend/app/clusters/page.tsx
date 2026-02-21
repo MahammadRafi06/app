@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { Plus, RefreshCw, Trash2, Eye, Server, Cpu, Zap, Activity, DollarSign, Rocket } from "lucide-react";
 import api, { extractData } from "@/lib/api";
 import { QUERY_KEYS, STALE_TIMES } from "@/lib/queryClient";
-import { Cluster, ClusterKPIs } from "@/types";
+import { Cluster, ClusterKPIs, UserProfile } from "@/types";
 import { DataTable, Column } from "@/components/ui/DataTable";
 import { KpiCard } from "@/components/ui/KpiCard";
 import { StatusBadge, ProviderBadge } from "@/components/ui/StatusBadge";
@@ -26,7 +26,17 @@ export default function ClustersPage() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [confirmDelete, setConfirmDelete] = useState<Cluster | null>(null);
 
-  const { data, isLoading, refetch } = useQuery({
+  const { data: user } = useQuery({
+    queryKey: QUERY_KEYS.me(),
+    queryFn: async () => {
+      const resp = await api.get("/api/auth/me");
+      return extractData<UserProfile>(resp);
+    },
+    staleTime: STALE_TIMES.profile,
+    retry: false,
+  });
+
+  const { data, isLoading, isFetching, refetch } = useQuery({
     queryKey: QUERY_KEYS.clusters({ page, search }),
     queryFn: async () => {
       const resp = await api.get("/api/clusters", { params: { page, page_size: 25, search: search || undefined } });
@@ -55,6 +65,18 @@ export default function ClustersPage() {
   const clusters = data?.items || [];
   const kpis = data?.kpis;
   const pagination = data?.pagination;
+  const canCreateCluster =
+    user?.connectk_group === "admin" || !!user?.permissions?.clusters?.includes("create");
+
+  const handleRefresh = async () => {
+    try {
+      await queryClient.invalidateQueries({ queryKey: QUERY_KEYS.clusters() });
+      await refetch({ throwOnError: true });
+      success("Refreshed", "Cluster data is up to date.");
+    } catch {
+      showError("Error", "Failed to refresh clusters.");
+    }
+  };
 
   const columns: Column<Cluster>[] = [
     {
@@ -101,14 +123,16 @@ export default function ClustersPage() {
           <p className="text-sm text-gray-500 mt-1">Manage your multi-cloud Kubernetes clusters</p>
         </div>
         <div className="flex gap-3">
-          <button onClick={() => refetch()} className="btn-secondary gap-2">
-            <RefreshCw className="w-4 h-4" />
-            Refresh
+          <button onClick={handleRefresh} className="btn-secondary gap-2" disabled={isFetching}>
+            <RefreshCw className={`w-4 h-4 ${isFetching ? "animate-spin" : ""}`} />
+            {isFetching ? "Refreshing..." : "Refresh"}
           </button>
-          <button onClick={() => setShowAddForm(true)} className="btn-primary gap-2">
-            <Plus className="w-4 h-4" />
-            Add Cluster
-          </button>
+          {canCreateCluster && (
+            <button onClick={() => setShowAddForm(true)} className="btn-primary gap-2">
+              <Plus className="w-4 h-4" />
+              Add Cluster
+            </button>
+          )}
         </div>
       </div>
 
@@ -173,16 +197,16 @@ export default function ClustersPage() {
           onPageChange: setPage,
         } : undefined}
         emptyMessage="No clusters registered yet."
-        emptyAction={
+        emptyAction={canCreateCluster ? (
           <button onClick={() => setShowAddForm(true)} className="btn-primary gap-2 mt-2">
             <Plus className="w-4 h-4" />
             Add your first cluster
           </button>
-        }
+        ) : undefined}
       />
 
       {/* Add Cluster Modal */}
-      {showAddForm && (
+      {showAddForm && canCreateCluster && (
         <ClusterForm
           onClose={() => setShowAddForm(false)}
           onSuccess={() => {

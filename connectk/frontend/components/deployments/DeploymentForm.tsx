@@ -40,6 +40,9 @@ export function DeploymentForm({ onClose, onSuccess, defaultValues, editMode, de
     },
   });
 
+  const clusterList = Array.isArray(clusters) ? clusters : [];
+  const modelList = Array.isArray(models) ? models : [];
+
   const { register, handleSubmit, watch, setValue, formState: { errors, isDirty } } = useForm<DeploymentCreatePayload>({
     defaultValues: {
       replicas: 1,
@@ -54,7 +57,7 @@ export function DeploymentForm({ onClose, onSuccess, defaultValues, editMode, de
   useUnsavedChanges(isDirty);
 
   const selectedProvider = watch("cluster_id")
-    ? clusters.find((c) => c.id === watch("cluster_id"))?.provider
+    ? clusterList.find((c) => c.id === watch("cluster_id"))?.provider
     : null;
 
   const onSubmit = async (data: DeploymentCreatePayload) => {
@@ -122,7 +125,7 @@ export function DeploymentForm({ onClose, onSuccess, defaultValues, editMode, de
               <label className="label">Cluster *</label>
               <select {...register("cluster_id", { required: "Required" })} className="input" disabled={isEditing}>
                 <option value="">Select cluster</option>
-                {clusters.map((c) => (
+                {clusterList.map((c) => (
                   <option key={c.id} value={c.id}>{c.name} ({c.provider})</option>
                 ))}
               </select>
@@ -138,7 +141,7 @@ export function DeploymentForm({ onClose, onSuccess, defaultValues, editMode, de
               <label className="label">Model *</label>
               <select {...register("model_id", { required: "Required" })} className="input">
                 <option value="">Select model</option>
-                {models.map((m) => (
+                {modelList.map((m) => (
                   <option key={m.id} value={m.id}>{m.custom_name || m.name} ({m.param_count_b}B)</option>
                 ))}
               </select>
