@@ -11,6 +11,10 @@ import {
   Package,
   User,
   Settings,
+  LayoutGrid,
+  Layers,
+  Wrench,
+  UserCircle,
   ChevronLeft,
   ChevronRight,
   Activity,
@@ -29,6 +33,10 @@ const NAV_ITEMS = [
   { href: "/gpus", label: "GPUs", icon: Zap },
   { href: "/deployments", label: "Deployments", icon: Rocket },
   { href: "/models", label: "Model Registry", icon: Package },
+  { href: "/applications", label: "Applications", icon: LayoutGrid },
+  { href: "/applicationsets", label: "AppSets", icon: Layers },
+  { href: "/argocd-settings", label: "ArgoCD Settings", icon: Wrench },
+  { href: "/user-info", label: "ArgoCD User", icon: UserCircle },
   { href: "/profile", label: "Profile", icon: User },
 ];
 

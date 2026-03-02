@@ -13,7 +13,7 @@ from fastapi.responses import JSONResponse
 from app.config import get_settings
 from app.database import init_db
 from app.redis_client import close_redis, get_redis
-from app.routers import admin, auth, clusters, deployments, events, models, nodes
+from app.routers import admin, argocd, auth, clusters, deployments, events, models, nodes
 from app.utils.response import error_response
 
 settings = get_settings()
@@ -65,7 +65,7 @@ CSRF_EXEMPT_PATHS = {"/api/auth/login", "/api/auth/callback", "/api/health", "/"
 @app.middleware("http")
 async def csrf_middleware(request: Request, call_next):
     """Double-submit cookie CSRF protection for state-changing requests."""
-    if request.method not in CSRF_SAFE_METHODS and request.url.path not in CSRF_EXEMPT_PATHS:
+    if request.method not in CSRF_SAFE_METHODS and request.url.path not in CSRF_EXEMPT_PATHS and not request.url.path.startswith("/api/argocd/"):
         cookie_token = request.cookies.get("connectk_csrf")
         header_token = request.headers.get("X-CSRF-Token")
         if not cookie_token or not header_token or cookie_token != header_token:
@@ -120,7 +120,7 @@ async def security_headers_middleware(request: Request, call_next):
             "connect-src 'self'"
         )
     response.headers["X-Content-Type-Options"] = "nosniff"
-    response.headers["X-Frame-Options"] = "DENY"
+    response.headers["X-Frame-Options"] = "SAMEORIGIN"
     response.headers["Referrer-Policy"] = "strict-origin-when-cross-origin"
     return response
 
@@ -175,6 +175,7 @@ app.include_router(nodes.router)
 app.include_router(admin.router)
 app.include_router(admin.audit_router)
 app.include_router(events.router)
+app.include_router(argocd.router)
 
 
 @app.get("/api/health", tags=["health"])

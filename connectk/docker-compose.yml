@@ -42,6 +42,7 @@ services:
       DATABASE_URL: postgresql+asyncpg://connectk:connectk@postgres:5432/connectk
       DATABASE_SYNC_URL: postgresql://connectk:connectk@postgres:5432/connectk
       REDIS_URL: redis://redis:6379/0
+      ARGOCD_SERVER_URL: ${ARGOCD_SERVER_URL}
       CONNECTK_ENV: development
     ports:
       - "8000:8000"

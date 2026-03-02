@@ -60,6 +60,9 @@ class Settings(BaseSettings):
     ENABLE_CUSTOM_GROUPS: bool = False
     MAX_CLUSTERS_PER_USER: int = 50
 
+    # ArgoCD
+    ARGOCD_SERVER_URL: str = ""
+
     # Bootstrap
     INITIAL_ADMIN_ENTRA_GROUP_ID: str = ""
 

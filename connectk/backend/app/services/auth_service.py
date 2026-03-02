@@ -127,6 +127,7 @@ class AuthService:
             "user_id": user_id,
             "access_token": encrypt(tokens["access_token"]),
             "refresh_token": encrypt(tokens.get("refresh_token", "")),
+            "id_token": encrypt(tokens.get("id_token", "")),
             "id_token_claims": id_token_claims,
             "token_expires_at": (now + timedelta(seconds=expires_in)).isoformat(),
             "connectk_group": connectk_group,
